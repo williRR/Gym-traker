@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Login from './components/login';
+import Login from './components/Login';
 import RoutineSelector from './components/RoutineSelector';
 import WorkoutFlow from './components/WorkoutFlow';
 import HistoryView from './components/HistoryView';
