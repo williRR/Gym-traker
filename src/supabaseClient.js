@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Sanitizar la URL por si contiene /rest/v1/
+if (supabaseUrl.endsWith('/rest/v1/')) {
+  supabaseUrl = supabaseUrl.slice(0, -9)
+} else if (supabaseUrl.endsWith('/rest/v1')) {
+  supabaseUrl = supabaseUrl.slice(0, -8)
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
