@@ -1,0 +1,8 @@
+{
+  "appId": "com.gymtracker.app",
+  "appName": "Gym Tracker",
+  "webDir": "dist",
+  "server": {
+    "url": "https://gym-traker-plum.vercel.app"
+  }
+}
