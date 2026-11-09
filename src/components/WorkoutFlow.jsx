@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getLastWorkoutSets } from '../lastWorkout';
 import { sortLegExercises } from '../legExercises';
+import { weightUnitLabel } from '../weightUnit';
 import { ArrowLeft, Check, Plus, Trash2, Dumbbell, AlertCircle, Disc, Scale } from 'lucide-react';
 
 export default function WorkoutFlow({ user, category, onFinish, onBack }) {
@@ -266,6 +267,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
         exercise_id: currentExercise.id,
         num_serie: idx + 1,
         peso_kg: parseFloat(s.peso_kg),
+        unidad: s.unidad || 'lbs',
         reps: parseInt(s.reps, 10)
       }));
 
@@ -282,6 +284,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
       }
     } catch (err) {
       console.error('Error al guardar series:', err.message);
+      alert('No se pudieron guardar las series. Inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -430,15 +433,11 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 mb-4">
             <p className="text-xs font-semibold text-slate-400 mb-2">Tu última sesión registrada ({user?.nombre}):</p>
             <div className="flex flex-wrap gap-2">
-              {currentLastWorkout.sets.map((s, idx) => {
-                const pesoVal = parseFloat(s?.peso_kg) || 0;
-                const unitLabel = pesoVal <= 10 && pesoVal % 1 === 0 ? 'lbs/discos' : 'lbs';
-                return (
+              {currentLastWorkout.sets.map((s, idx) => (
                   <span key={idx} className="text-xs bg-slate-950 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md">
-                    S{s?.num_serie}: <strong className="text-white">{s?.peso_kg} {unitLabel}</strong> × {s?.reps} reps
+                    S{s?.num_serie}: <strong className="text-white">{s?.peso_kg} {weightUnitLabel(s?.unidad)}</strong> × {s?.reps} reps
                   </span>
-                );
-              })}
+              ))}
             </div>
           </div>
         )}

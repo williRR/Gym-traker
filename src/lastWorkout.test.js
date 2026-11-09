@@ -26,8 +26,8 @@ function mockSupabase(responses) {
 
 test('consulta la última sesión del ejercicio y usuario solicitados', async () => {
   const sets = [
-    { num_serie: 1, peso_kg: 50, reps: 10 },
-    { num_serie: 2, peso_kg: 60, reps: 8 },
+    { num_serie: 1, peso_kg: 50, reps: 10, unidad: 'lbs' },
+    { num_serie: 2, peso_kg: 2, reps: 8, unidad: 'discos' },
   ];
   const client = mockSupabase([
     { data: [{ id: 20 }, { id: 10 }], error: null },
@@ -50,7 +50,7 @@ test('consulta la última sesión del ejercicio y usuario solicitados', async ()
       ['limit', 1],
     ] },
     { table: 'set_logs', calls: [
-      ['select', 'num_serie, peso_kg, reps'],
+      ['select', 'num_serie, peso_kg, reps, unidad'],
       ['eq', 'session_id', 10],
       ['eq', 'exercise_id', 3],
       ['order', 'num_serie', { ascending: true }],

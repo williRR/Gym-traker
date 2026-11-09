@@ -21,7 +21,7 @@ export async function getLastWorkoutSets(supabase, userId, exerciseId) {
 
   const { data: sessionSets, error: setsError } = await supabase
     .from('set_logs')
-    .select('num_serie, peso_kg, reps')
+    .select('num_serie, peso_kg, reps, unidad')
     .eq('session_id', latestLog[0].session_id)
     .eq('exercise_id', exerciseId)
     .order('num_serie', { ascending: true });

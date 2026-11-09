@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { weightUnitLabel } from '../weightUnit';
 import { ArrowLeft, Calendar, Dumbbell, User, Flame, Trash2 } from 'lucide-react';
 
 export default function HistoryView({ user, category, onBack }) {
   const [groupedHistory, setGroupedHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
@@ -25,6 +27,7 @@ export default function HistoryView({ user, category, onBack }) {
 
   const loadHistory = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const { data, error } = await supabase
         .from('workout_sessions')
@@ -36,6 +39,7 @@ export default function HistoryView({ user, category, onBack }) {
             id,
             num_serie,
             peso_kg,
+            unidad,
             reps,
             created_at,
             exercises ( nombre )
@@ -97,6 +101,7 @@ export default function HistoryView({ user, category, onBack }) {
       setGroupedHistory(resultGroups);
     } catch (err) {
       console.error('Error al cargar historial:', err.message);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -172,6 +177,8 @@ export default function HistoryView({ user, category, onBack }) {
 
       {loading ? (
         <p className="text-center text-slate-500 text-xs animate-pulse py-10">Cargando historial...</p>
+      ) : loadError ? (
+        <p role="alert" className="text-center text-red-400 text-xs py-10">No se pudo cargar el historial. Inténtalo de nuevo.</p>
       ) : groupedHistory.length === 0 ? (
         <div className="text-center py-10 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
           <Dumbbell className="w-8 h-8 text-slate-600 mx-auto mb-2" />
@@ -216,14 +223,12 @@ export default function HistoryView({ user, category, onBack }) {
                     </div>
 
                     <div className="space-y-1.5 pl-2 border-l-2 border-indigo-600/30">
-                      {ex.logs.map((log) => {
-                        const unitLabel = log.peso_kg <= 10 && log.peso_kg % 1 === 0 ? 'lbs/discos' : 'lbs';
-                        return (
+                      {ex.logs.map((log) => (
                           <div key={log.id} className="flex justify-between items-center text-xs py-0.5 group">
                             <span className="text-slate-400 text-[11px]">Serie {log.num_serie}:</span>
                             <div className="flex items-center gap-2">
                               <span className="text-slate-300 font-mono text-[11px]">
-                                <strong className="text-white font-bold">{log.peso_kg} {unitLabel}</strong> × {log.reps} reps efectivas
+                                <strong className="text-white font-bold">{log.peso_kg} {weightUnitLabel(log.unidad)}</strong> × {log.reps} reps efectivas
                               </span>
                               <button
                                 onClick={() => handleDeleteSingleLog(log.id)}
@@ -234,8 +239,7 @@ export default function HistoryView({ user, category, onBack }) {
                               </button>
                             </div>
                           </div>
-                        );
-                      })}
+                      ))}
                     </div>
                   </div>
                 ))}

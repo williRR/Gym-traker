@@ -8,6 +8,12 @@ Se requiere Node.js 22 o superior. Instala las dependencias con `npm install`, c
 
 Las variables `VITE_` se incluyen en la aplicación compilada: usa únicamente la clave pública de Supabase, nunca la clave `service_role` ni otros secretos. Protege los datos mediante las políticas apropiadas de Supabase.
 
+La tabla `set_logs` requiere una columna nullable `unidad` de tipo `text`, con valores `lbs` o `discos`. La aplicación guarda la unidad elegida en cada serie, aunque el campo numérico histórico se llame `peso_kg`. Los registros antiguos con unidad `NULL` se muestran como «unidad no confirmada»; no se convierten ni se asume su unidad.
+
+## Progreso
+
+Desde el selector de rutinas, «Ver mi progreso» permite consultar los últimos 30 o 90 días, contados desde el momento de abrir la vista o cambiar el período. Para cada ejercicio y unidad se muestra la serie de mayor peso de cada sesión; si hay empate se elige la que tiene más repeticiones. La comparación usa la primera y última sesión del período, y requiere al menos dos sesiones. Los discos y las libras se presentan por separado sin convertirlos; las series de unidad no confirmada se cuentan, pero se excluyen de la gráfica y los cálculos. Las fechas corresponden a la creación de cada sesión y se muestran en la zona horaria del dispositivo.
+
 ## Android con Capacitor
 
 El proyecto nativo está en `android/`. Requiere Android Studio 2025.2.1 o superior, JDK 21 y el SDK de Android con la plataforma API 36 y las herramientas de compilación instaladas. Capacitor admite dispositivos con Android 7 (API 24) o superior.

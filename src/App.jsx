@@ -3,6 +3,7 @@ import Login from './components/Login';
 import RoutineSelector from './components/RoutineSelector';
 import WorkoutFlow from './components/WorkoutFlow';
 import HistoryView from './components/HistoryView';
+import ProgressView from './components/ProgressView';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -94,6 +95,7 @@ export default function App() {
             user={currentUser}
             onLogout={handleLogout}
             onSelectRoutine={handleSelectRoutine}
+            onProgress={() => setViewMode('progress')}
           />
         )}
 
@@ -112,6 +114,10 @@ export default function App() {
             category={selectedCategory}
             onBack={() => setViewMode('selector')}
           />
+        )}
+
+        {viewMode === 'progress' && (
+          <ProgressView user={currentUser} onBack={() => setViewMode('selector')} />
         )}
       </div>
     </ErrorBoundary>
