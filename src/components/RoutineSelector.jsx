@@ -12,7 +12,7 @@ export default function RoutineSelector({ user, onLogout, onSelectRoutine }) {
     {
       id: 'pierna',
       title: 'Pierna y Abdomen',
-      desc: 'Sentadilla, Extensiones, Femoral, Hip Thrust y Pantorrilla',
+      desc: 'Extensiones, Sentadilla, Hip Thrust, Femoral, Espalda baja, Pantorrilla y Abdomen',
       icon: Flame,
     },
     {

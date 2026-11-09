@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { getLastWorkoutSets } from '../lastWorkout';
+import { sortLegExercises } from '../legExercises';
 import { ArrowLeft, Check, Plus, Trash2, Dumbbell, AlertCircle, Disc, Scale } from 'lucide-react';
 
 export default function WorkoutFlow({ user, category, onFinish, onBack }) {
   const [exercises, setExercises] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sessionId, setSessionId] = useState(null);
-  const [lastWorkoutSets, setLastWorkoutSets] = useState([]);
+  const [lastWorkout, setLastWorkout] = useState(null);
   const [currentSets, setCurrentSets] = useState([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
   const [sentadillaVariant, setSentadillaVariant] = useState('Libre'); // 'Libre' | 'Hack'
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState(null);
   const [saving, setSaving] = useState(false);
 
   // Clave única para guardar el progreso por usuario y categoría
@@ -20,43 +23,26 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     setSessionId(null);
     setCurrentIndex(0);
     setCurrentSets([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
-    setLastWorkoutSets([]);
+    setLastWorkout(null);
     setSentadillaVariant('Libre');
     initWorkout();
   }, [category, user?.id]);
 
-  // 1. Restaurar progreso local si existe un borrador guardado para este usuario
+  // Auto-guardar en localStorage cada vez que cambie de ejercicio o altere los campos
   useEffect(() => {
-    const savedDraft = localStorage.getItem(DRAFT_KEY);
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        if (parsed?.userId === user?.id) {
-          if (parsed.sessionId) setSessionId(parsed.sessionId);
-          if (parsed.currentIndex !== undefined) setCurrentIndex(parsed.currentIndex);
-          if (parsed.currentSets && Array.isArray(parsed.currentSets)) setCurrentSets(parsed.currentSets);
-          if (parsed.sentadillaVariant) setSentadillaVariant(parsed.sentadillaVariant);
-        }
-      } catch (e) {
-        console.error('Error al restaurar borrador:', e);
-      }
-    }
-  }, [DRAFT_KEY, user?.id]);
-
-  // 2. Auto-guardar en localStorage cada vez que cambie de ejercicio o altere los campos
-  useEffect(() => {
-    if (sessionId) {
+    if (!loading && sessionId && exercises[currentIndex]) {
       const draftData = {
         userId: user?.id,
         sessionId,
         currentIndex,
+        exerciseId: exercises[currentIndex].id,
         currentSets,
         category,
         sentadillaVariant,
       };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
     }
-  }, [sessionId, currentIndex, currentSets, category, DRAFT_KEY, user?.id, sentadillaVariant]);
+  }, [loading, exercises, sessionId, currentIndex, currentSets, category, DRAFT_KEY, user?.id, sentadillaVariant]);
 
   // Filtrado y ordenamiento estricto por categoría solicitada por el usuario
   const sortExercisesByCustomOrder = (exList, cat) => {
@@ -94,35 +80,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     }
 
     if (cat === 'pierna') {
-      // 1. Sentadillas (Libre / Hack)
-      // 2. Extensiones de pierna
-      // 3. Hip Thrust
-      // 4. Curl femoral / Isquios
-      // 5. Pantorrilla
-      // (Excluir estrictamente Prensa y Abdomen)
-      const getScore = (ex) => {
-        const n = (ex?.nombre || '').toLowerCase();
-        if (n.includes('sentadilla')) return 0;
-        if (n.includes('extensiones')) return 1;
-        if (n.includes('hip thrust') || n.includes('hiptrust')) return 2;
-        if (n.includes('femoral') || n.includes('isquios') || n.includes('curl')) return 3;
-        if (n.includes('pantorrilla')) return 4;
-        return -1;
-      };
-
-      const filtered = exList.filter((ex) => getScore(ex) !== -1);
-      const sorted = filtered.sort((a, b) => getScore(a) - getScore(b));
-
-      const selected = [];
-      const seenScores = new Set();
-      sorted.forEach((ex) => {
-        const score = getScore(ex);
-        if (!seenScores.has(score)) {
-          seenScores.add(score);
-          selected.push(ex);
-        }
-      });
-      return selected;
+      return sortLegExercises(exList);
     }
 
     if (cat === 'pecho') {
@@ -159,9 +117,21 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
 
   const initWorkout = async () => {
     setLoading(true);
+    setInitError(null);
     try {
       if (!user?.id) return;
-      let activeSessionId = sessionId;
+      let draft = null;
+      const savedDraft = localStorage.getItem(DRAFT_KEY);
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed?.userId === user.id) draft = parsed;
+        } catch (err) {
+          console.error('Error al restaurar borrador:', err);
+        }
+      }
+
+      let activeSessionId = draft?.sessionId;
 
       if (!activeSessionId) {
         const { data: sessionData, error: sessionErr } = await supabase
@@ -172,90 +142,74 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
 
         if (sessionErr) throw sessionErr;
         activeSessionId = sessionData?.id;
-        setSessionId(activeSessionId);
       }
 
       // Cargar ejercicios de la categoría
-      const { data: exData, error: exErr } = await supabase
+      let exercisesQuery = supabase
         .from('exercises')
-        .select('*')
-        .eq('categoria', category);
+        .select('*');
+      exercisesQuery = category === 'pierna'
+        ? exercisesQuery.in('categoria', ['pierna', 'espalda'])
+        : exercisesQuery.eq('categoria', category);
+      const { data: exData, error: exErr } = await exercisesQuery;
 
       if (exErr) throw exErr;
 
       // Ordenar y filtrar exactamente según la secuencia deseada
       const sortedEx = sortExercisesByCustomOrder(exData, category);
-      setExercises(sortedEx);
-
-      if (sortedEx && sortedEx.length > 0) {
-        const targetExerciseId = sortedEx[currentIndex]?.id || sortedEx[0]?.id;
-        if (targetExerciseId) {
-          await loadLastWorkout(targetExerciseId);
+      if (draft) {
+        const draftExerciseId = draft.exerciseId ?? (category === 'pierna'
+          ? sortLegExercises(exData, true)[draft.currentIndex]?.id
+          : sortedEx[draft.currentIndex]?.id);
+        const restoredIndex = sortedEx.findIndex((exercise) => exercise.id === draftExerciseId);
+        if (restoredIndex !== -1) {
+          setCurrentIndex(restoredIndex);
+          if (Array.isArray(draft.currentSets)) setCurrentSets(draft.currentSets);
+          if (draft.sentadillaVariant) setSentadillaVariant(draft.sentadillaVariant);
+        } else {
+          console.error('No se pudo restaurar el ejercicio del borrador:', draftExerciseId);
+          throw new Error('No se pudo restaurar el ejercicio del borrador. Regresa e inténtalo de nuevo.');
         }
       }
+      setSessionId(activeSessionId);
+      setExercises(sortedEx);
     } catch (err) {
       console.error('Error inicializando entrenamiento:', err.message);
+      setInitError(err.message || 'No se pudo cargar la rutina.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Carga la última sesión ÚNICA registrada de este ejercicio para el usuario activo (sin duplicados)
-  const loadLastWorkout = async (exerciseId) => {
-    try {
-      if (!user?.id || !exerciseId) return;
-
-      const { data: userSessions, error: sessErr } = await supabase
-        .from('workout_sessions')
-        .select('id, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (sessErr || !userSessions || userSessions.length === 0) {
-        setLastWorkoutSets([]);
-        return;
-      }
-
-      const sessionIds = userSessions.map((s) => s.id);
-
-      const { data: latestLog, error: logErr } = await supabase
-        .from('set_logs')
-        .select('session_id, created_at')
-        .in('session_id', sessionIds)
-        .eq('exercise_id', exerciseId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (logErr || !latestLog || latestLog.length === 0) {
-        setLastWorkoutSets([]);
-        return;
-      }
-
-      const lastSessionId = latestLog[0]?.session_id;
-
-      if (!lastSessionId) {
-        setLastWorkoutSets([]);
-        return;
-      }
-
-      const { data: sessionSets, error: setsErr } = await supabase
-        .from('set_logs')
-        .select('num_serie, peso_kg, reps')
-        .eq('session_id', lastSessionId)
-        .eq('exercise_id', exerciseId)
-        .order('num_serie', { ascending: true });
-
-      if (!setsErr && sessionSets) {
-        setLastWorkoutSets(sessionSets);
-      } else {
-        setLastWorkoutSets([]);
-      }
-    } catch (err) {
-      setLastWorkoutSets([]);
-    }
-  };
-
   const currentExercise = exercises[currentIndex];
+  const exerciseId = currentExercise?.id;
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (!userId || !exerciseId) return;
+
+    let active = true;
+    getLastWorkoutSets(supabase, userId, exerciseId)
+      .then((sets) => {
+        if (active) setLastWorkout({ userId, exerciseId, category, sets });
+      })
+      .catch((err) => {
+        if (active) {
+          console.error('Error al cargar la última sesión:', err);
+          setLastWorkout({ userId, exerciseId, category, error: true });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, exerciseId, category]);
+
+  const currentLastWorkout = lastWorkout?.userId === userId
+    && lastWorkout?.exerciseId === exerciseId
+    && lastWorkout?.category === category
+    ? lastWorkout
+    : null;
 
   const isSentadilla = (name) => {
     return (name || '').toLowerCase().includes('sentadilla');
@@ -322,9 +276,6 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
         const nextIdx = currentIndex + 1;
         setCurrentIndex(nextIdx);
         setCurrentSets([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
-        if (exercises[nextIdx]?.id) {
-          await loadLastWorkout(exercises[nextIdx].id);
-        }
       } else {
         localStorage.removeItem(DRAFT_KEY);
         onFinish();
@@ -340,6 +291,18 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <p className="text-slate-400 text-sm animate-pulse">Cargando rutina...</p>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col items-center justify-center text-center">
+        <AlertCircle className="w-10 h-10 text-red-400 mb-2" />
+        <p role="alert" className="text-slate-300 font-medium mb-2">{initError}</p>
+        <button onClick={onBack} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-slate-700 transition">
+          Volver
+        </button>
       </div>
     );
   }
@@ -382,8 +345,12 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
       exerciseDisplayName = 'Hip Thrust';
     } else if (exNameLower.includes('femoral') || exNameLower.includes('isquios') || exNameLower.includes('curl')) {
       exerciseDisplayName = 'Curl femoral (isquios)';
+    } else if (exNameLower.includes('espalda baja')) {
+      exerciseDisplayName = 'Espalda baja';
     } else if (exNameLower.includes('pantorrilla')) {
       exerciseDisplayName = 'Pantorrilla';
+    } else if (exNameLower.includes('abdomen') || exNameLower.includes('abdominal')) {
+      exerciseDisplayName = 'Abdomen';
     }
   } else if (category === 'pecho') {
     if (exNameLower.includes('press') && !exNameLower.includes('inclinado')) {
@@ -448,11 +415,22 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
         </div>
 
         {/* Referencia de la última sesión registrada */}
-        {lastWorkoutSets && lastWorkoutSets.length > 0 && (
+        {currentLastWorkout?.error && (
+          <p role="alert" className="text-xs text-red-400 mb-4">
+            No se pudo cargar la última sesión de este ejercicio.
+          </p>
+        )}
+        {!currentLastWorkout && (
+          <p className="text-xs text-slate-400 mb-4">Cargando última sesión de este ejercicio...</p>
+        )}
+        {currentLastWorkout?.sets?.length === 0 && (
+          <p className="text-xs text-slate-400 mb-4">Aún no hay una sesión registrada para este ejercicio.</p>
+        )}
+        {currentLastWorkout?.sets?.length > 0 && (
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 mb-4">
             <p className="text-xs font-semibold text-slate-400 mb-2">Tu última sesión registrada ({user?.nombre}):</p>
             <div className="flex flex-wrap gap-2">
-              {lastWorkoutSets.map((s, idx) => {
+              {currentLastWorkout.sets.map((s, idx) => {
                 const pesoVal = parseFloat(s?.peso_kg) || 0;
                 const unitLabel = pesoVal <= 10 && pesoVal % 1 === 0 ? 'lbs/discos' : 'lbs';
                 return (
