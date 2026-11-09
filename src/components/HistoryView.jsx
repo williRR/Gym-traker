@@ -162,7 +162,7 @@ export default function HistoryView({ user, category, onBack }) {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="text-right">
-          <h1 className="text-base font-bold capitalize text-white">Historial: {category}</h1>
+          <h1 className="text-base font-bold capitalize text-white">HISTORIAL: {category}</h1>
           <div className="flex items-center gap-1 text-xs text-indigo-400 justify-end font-medium">
             <User className="w-3.5 h-3.5 text-indigo-400" />
             <span>Atleta: {user.nombre}</span>

@@ -37,7 +37,7 @@ export default function Login({ onLoginSuccess }) {
           <Dumbbell className="w-10 h-10" />
         </div>
 
-        <h1 className="text-2xl font-bold text-white mb-1">Gym Tracker</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">Gym Tracker Hecho por willi</h1>
         <p className="text-xs text-slate-400 mb-6">Selecciona tu perfil e ingresa tu contraseña</p>
 
         {errorMsg && (
