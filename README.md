@@ -10,6 +10,8 @@ Las variables `VITE_` se incluyen en la aplicación compilada: usa únicamente l
 
 La tabla `set_logs` requiere una columna nullable `unidad` de tipo `text`, con valores `lbs` o `discos`. La aplicación guarda la unidad elegida en cada serie, aunque el campo numérico histórico se llame `peso_kg`. Los registros antiguos con unidad `NULL` se muestran como «unidad no confirmada»; no se convierten ni se asume su unidad.
 
+Durante una rutina puedes usar «Ejercicio anterior» para revisar o modificar series ya guardadas. Los datos escritos en otros ejercicios se conservan en el borrador local; los cambios se guardan al avanzar nuevamente. Como el guardado usa varias operaciones de base de datos, si falla puede quedar parcialmente aplicado: revisa las series y reintenta antes de continuar.
+
 ## Progreso
 
 Desde el selector de rutinas, «Ver mi progreso» permite consultar los últimos 30 o 90 días, contados desde el momento de abrir la vista o cambiar el período. Para cada ejercicio y unidad se muestra la serie de mayor peso de cada sesión; si hay empate se elige la que tiene más repeticiones. La comparación usa la primera y última sesión del período, y requiere al menos dos sesiones. Los discos y las libras se presentan por separado sin convertirlos; las series de unidad no confirmada se cuentan, pero se excluyen de la gráfica y los cálculos. Las fechas corresponden a la creación de cada sesión y se muestran en la zona horaria del dispositivo.

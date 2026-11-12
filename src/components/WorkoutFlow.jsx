@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { getLastWorkoutSets } from '../lastWorkout';
 import { sortLegExercises } from '../legExercises';
 import { weightUnitLabel } from '../weightUnit';
+import { emptySet, loadSessionExerciseSets, saveSessionExerciseSets, toEditableSets } from '../sessionSets';
 import { ArrowLeft, Check, Plus, Trash2, Dumbbell, AlertCircle, Disc, Scale } from 'lucide-react';
 
 export default function WorkoutFlow({ user, category, onFinish, onBack }) {
@@ -11,6 +12,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
   const [sessionId, setSessionId] = useState(null);
   const [lastWorkout, setLastWorkout] = useState(null);
   const [currentSets, setCurrentSets] = useState([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
+  const [exerciseDrafts, setExerciseDrafts] = useState({});
   const [sentadillaVariant, setSentadillaVariant] = useState('Libre'); // 'Libre' | 'Hack'
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
@@ -24,6 +26,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     setSessionId(null);
     setCurrentIndex(0);
     setCurrentSets([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
+    setExerciseDrafts({});
     setLastWorkout(null);
     setSentadillaVariant('Libre');
     initWorkout();
@@ -38,12 +41,13 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
         currentIndex,
         exerciseId: exercises[currentIndex].id,
         currentSets,
+        exerciseDrafts,
         category,
         sentadillaVariant,
       };
       localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
     }
-  }, [loading, exercises, sessionId, currentIndex, currentSets, category, DRAFT_KEY, user?.id, sentadillaVariant]);
+  }, [loading, exercises, sessionId, currentIndex, currentSets, exerciseDrafts, category, DRAFT_KEY, user?.id, sentadillaVariant]);
 
   // Filtrado y ordenamiento estricto por categoría solicitada por el usuario
   const sortExercisesByCustomOrder = (exList, cat) => {
@@ -166,6 +170,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
         if (restoredIndex !== -1) {
           setCurrentIndex(restoredIndex);
           if (Array.isArray(draft.currentSets)) setCurrentSets(draft.currentSets);
+          if (draft.exerciseDrafts && typeof draft.exerciseDrafts === 'object' && !Array.isArray(draft.exerciseDrafts)) setExerciseDrafts(draft.exerciseDrafts);
           if (draft.sentadillaVariant) setSentadillaVariant(draft.sentadillaVariant);
         } else {
           console.error('No se pudo restaurar el ejercicio del borrador:', draftExerciseId);
@@ -187,10 +192,10 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
   const userId = user?.id;
 
   useEffect(() => {
-    if (!userId || !exerciseId) return;
+    if (!userId || !exerciseId || !sessionId) return;
 
     let active = true;
-    getLastWorkoutSets(supabase, userId, exerciseId)
+    getLastWorkoutSets(supabase, userId, exerciseId, sessionId)
       .then((sets) => {
         if (active) setLastWorkout({ userId, exerciseId, category, sets });
       })
@@ -204,7 +209,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     return () => {
       active = false;
     };
-  }, [userId, exerciseId, category]);
+  }, [userId, exerciseId, category, sessionId]);
 
   const currentLastWorkout = lastWorkout?.userId === userId
     && lastWorkout?.exerciseId === exerciseId
@@ -220,7 +225,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
     const lastSet = currentSets[currentSets.length - 1];
     setCurrentSets([
       ...currentSets,
-      { peso_kg: lastSet?.peso_kg || '', reps: lastSet?.reps || '', unidad: lastSet?.unidad || 'lbs' }
+      { peso_kg: lastSet?.peso_kg ?? '', reps: lastSet?.reps ?? '', unidad: lastSet?.unidad ?? null }
     ]);
   };
 
@@ -241,50 +246,65 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
   const toggleSetUnidad = (index) => {
     const updated = [...currentSets];
     if (updated[index]) {
-      const currentUnit = updated[index].unidad || 'lbs';
+      const currentUnit = updated[index].unidad;
       updated[index] = { ...updated[index], unidad: currentUnit === 'lbs' ? 'discos' : 'lbs' };
       setCurrentSets(updated);
+    }
+  };
+
+  const getExerciseDraft = async (targetExercise) => {
+    if (Array.isArray(exerciseDrafts[targetExercise.id])) return exerciseDrafts[targetExercise.id];
+    const savedSets = await loadSessionExerciseSets(supabase, sessionId, targetExercise.id);
+    return savedSets.length ? toEditableSets(savedSets) : [emptySet()];
+  };
+
+  const handlePreviousExercise = async () => {
+    if (!sessionId || currentIndex === 0 || saving) return;
+    setSaving(true);
+    try {
+      const previousSets = await getExerciseDraft(exercises[currentIndex - 1]);
+      setExerciseDrafts((drafts) => ({ ...drafts, [currentExercise.id]: currentSets }));
+      setCurrentSets(previousSets);
+      setCurrentIndex(currentIndex - 1);
+    } catch (err) {
+      console.error('Error al cargar las series del ejercicio anterior:', err);
+      alert('No se pudieron cargar las series del ejercicio anterior. Inténtalo de nuevo.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleNextExercise = async () => {
     if (!sessionId || !currentExercise) return;
 
-    const validSets = currentSets.filter(
-      (s) => s.peso_kg !== '' && s.reps !== '' && !isNaN(parseFloat(s.peso_kg)) && parseFloat(s.peso_kg) >= 0 && parseInt(s.reps, 10) > 0
-    );
+    const validSets = currentSets.filter((s) => s.peso_kg !== '' || s.reps !== '');
 
-    if (validSets.length === 0) {
-      alert('Debes ingresar al menos 1 serie válida (peso/discos y repeticiones) antes de continuar.');
+    if (validSets.length === 0 || validSets.some((s) =>
+      s.peso_kg === '' || s.reps === '' || !Number.isFinite(Number(s.peso_kg)) ||
+      Number(s.peso_kg) < 0 || !Number.isInteger(Number(s.reps)) || Number(s.reps) <= 0 ||
+      (s.unidad != null && s.unidad !== 'lbs' && s.unidad !== 'discos'))) {
+      alert('Completa todas las series con un peso válido y repeticiones enteras mayores a cero.');
       return;
     }
 
     setSaving(true);
 
     try {
-      const setsToInsert = validSets.map((s, idx) => ({
-        session_id: sessionId,
-        exercise_id: currentExercise.id,
-        num_serie: idx + 1,
-        peso_kg: parseFloat(s.peso_kg),
-        unidad: s.unidad || 'lbs',
-        reps: parseInt(s.reps, 10)
-      }));
-
-      const { error } = await supabase.from('set_logs').insert(setsToInsert);
-      if (error) throw error;
+      await saveSessionExerciseSets(supabase, sessionId, currentExercise.id, validSets);
 
       if (currentIndex + 1 < exercises.length) {
         const nextIdx = currentIndex + 1;
+        const nextSets = await getExerciseDraft(exercises[nextIdx]);
+        setExerciseDrafts((drafts) => ({ ...drafts, [currentExercise.id]: validSets }));
         setCurrentIndex(nextIdx);
-        setCurrentSets([{ peso_kg: '', reps: '', unidad: 'lbs' }]);
+        setCurrentSets(nextSets);
       } else {
         localStorage.removeItem(DRAFT_KEY);
         onFinish();
       }
     } catch (err) {
       console.error('Error al guardar series:', err.message);
-      alert('No se pudieron guardar las series. Inténtalo de nuevo.');
+      alert('No se completó el guardado o la carga del siguiente ejercicio. Algunas series podrían haberse guardado; revisa los datos e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -372,7 +392,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
       <div>
         {/* Cabecera */}
         <div className="flex items-center justify-between mb-4">
-          <button onClick={onBack} className="p-2 bg-slate-900 text-slate-400 rounded-xl border border-slate-800">
+          <button onClick={onBack} disabled={saving} aria-label="Volver a rutinas" className="p-2 bg-slate-900 text-slate-400 rounded-xl border border-slate-800 disabled:opacity-50">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <span className="text-xs font-semibold text-indigo-400 bg-indigo-950/80 border border-indigo-800/50 px-3 py-1 rounded-full">
@@ -396,6 +416,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
                   <button
                     key={variant}
                     type="button"
+                    disabled={saving}
                     onClick={() => setSentadillaVariant(variant)}
                     className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition ${
                       sentadillaVariant === variant
@@ -460,7 +481,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
           </div>
 
           {currentSets.map((set, index) => {
-            const unit = set?.unidad || 'lbs';
+            const unit = set?.unidad ?? null;
             const isDiscos = unit === 'discos';
 
             return (
@@ -470,13 +491,15 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
                 <div className="flex-1 relative flex items-center">
                   <input
                     type="number"
+                    disabled={saving}
                     placeholder={isDiscos ? 'Discos' : 'Lbs'}
-                    value={set?.peso_kg || ''}
+                    value={set?.peso_kg ?? ''}
                     onChange={(e) => handleSetChange(index, 'peso_kg', e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-2 pr-14 py-2.5 text-center text-sm font-semibold text-white focus:outline-none focus:border-indigo-500 transition"
                   />
                   <button
                     type="button"
+                    disabled={saving}
                     onClick={() => toggleSetUnidad(index)}
                     className={`absolute right-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase transition flex items-center gap-0.5 border ${
                       isDiscos
@@ -486,7 +509,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
                     title="Alternar entre Lbs y Discos"
                   >
                     {isDiscos ? <Disc className="w-3 h-3" /> : <Scale className="w-3 h-3" />}
-                    {unit}
+                    {unit || 'sin unidad'}
                   </button>
                 </div>
 
@@ -495,8 +518,9 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
                 <div className="flex-1">
                   <input
                     type="number"
+                    disabled={saving}
                     placeholder="Reps"
-                    value={set?.reps || ''}
+                    value={set?.reps ?? ''}
                     onChange={(e) => handleSetChange(index, 'reps', e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-center text-sm font-semibold text-white focus:outline-none focus:border-indigo-500 transition"
                   />
@@ -504,6 +528,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
 
                 {currentSets.length > 1 ? (
                   <button
+                    disabled={saving}
                     onClick={() => handleRemoveSet(index)}
                     className="p-2 text-slate-500 hover:text-red-400 transition w-8 flex justify-center"
                     title="Eliminar serie"
@@ -518,6 +543,7 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
           })}
 
           <button
+            disabled={saving}
             onClick={handleAddSet}
             className="w-full py-2.5 bg-slate-900 hover:bg-slate-850 text-indigo-400 text-xs font-semibold rounded-xl border border-dashed border-slate-800 flex items-center justify-center gap-1.5 transition mt-2"
           >
@@ -528,6 +554,16 @@ export default function WorkoutFlow({ user, category, onFinish, onBack }) {
 
       {/* Botón de Siguiente / Finalizar */}
       <div className="pt-4">
+        {currentIndex > 0 && (
+          <button
+            type="button"
+            onClick={handlePreviousExercise}
+            disabled={saving}
+            className="w-full mb-3 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm rounded-xl flex items-center justify-center gap-2 transition disabled:opacity-50"
+          >
+            <ArrowLeft className="w-4 h-4" /> Ejercicio anterior
+          </button>
+        )}
         <button
           onClick={handleNextExercise}
           disabled={saving}

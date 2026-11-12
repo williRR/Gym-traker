@@ -71,6 +71,15 @@ test('no consulta series cuando no hay sesiones o historial del ejercicio', asyn
   assert.equal(noExercise.queries.length, 2);
 });
 
+test('excluye la sesión actual al mostrar la sesión anterior', async () => {
+  const client = mockSupabase([
+    { data: [{ id: 20 }, { id: 10 }], error: null },
+    { data: [], error: null },
+  ]);
+  assert.deepEqual(await getLastWorkoutSets(client, 7, 3, 20), []);
+  assert.deepEqual(client.queries[1].calls.find((call) => call[0] === 'in'), ['in', 'session_id', [10]]);
+});
+
 test('propaga errores en cualquiera de las consultas', async () => {
   const failure = new Error('Error de conexión');
   const success = [

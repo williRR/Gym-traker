@@ -1,4 +1,4 @@
-export async function getLastWorkoutSets(supabase, userId, exerciseId) {
+export async function getLastWorkoutSets(supabase, userId, exerciseId, currentSessionId = null) {
   const { data: userSessions, error: sessionsError } = await supabase
     .from('workout_sessions')
     .select('id, created_at')
@@ -7,11 +7,13 @@ export async function getLastWorkoutSets(supabase, userId, exerciseId) {
 
   if (sessionsError) throw sessionsError;
   if (!userSessions?.length) return [];
+  const sessionIds = userSessions.filter((session) => session.id !== currentSessionId).map((session) => session.id);
+  if (!sessionIds.length) return [];
 
   const { data: latestLog, error: logError } = await supabase
     .from('set_logs')
     .select('session_id, created_at')
-    .in('session_id', userSessions.map((session) => session.id))
+    .in('session_id', sessionIds)
     .eq('exercise_id', exerciseId)
     .order('created_at', { ascending: false })
     .limit(1);
