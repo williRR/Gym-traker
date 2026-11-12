@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { weightUnitLabel } from '../weightUnit';
-import { ArrowLeft, Calendar, Dumbbell, User, Flame, Trash2 } from 'lucide-react';
+import HistoryEditor from './HistoryEditor';
+import { ArrowLeft, Calendar, Dumbbell, User, Flame, Trash2, Pencil } from 'lucide-react';
 
 export default function HistoryView({ user, category, onBack }) {
   const [groupedHistory, setGroupedHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -67,10 +69,12 @@ export default function HistoryView({ user, category, onBack }) {
             dateKey,
             rawDate: session.created_at,
             sessionIds: new Set([session.id]),
+            sessions: [{ id: session.id, created_at: session.created_at }],
             exercisesMap: new Map() // nombre_ejercicio -> lista_de_series
           });
         } else {
           groupsMap.get(dateKey).sessionIds.add(session.id);
+          groupsMap.get(dateKey).sessions.push({ id: session.id, created_at: session.created_at });
         }
 
         const group = groupsMap.get(dateKey);
@@ -91,6 +95,7 @@ export default function HistoryView({ user, category, onBack }) {
         dateKey: g.dateKey,
         rawDate: g.rawDate,
         sessionIds: Array.from(g.sessionIds),
+        sessions: g.sessions,
         exercises: Array.from(g.exercisesMap.entries()).map(([exName, logs]) => ({
           name: exName,
           // Ordenar series numéricamente por num_serie
@@ -159,6 +164,17 @@ export default function HistoryView({ user, category, onBack }) {
     );
   }
 
+  if (editingGroup) {
+    return (
+      <HistoryEditor
+        category={category}
+        sessions={editingGroup.sessions}
+        onCancel={() => setEditingGroup(null)}
+        onSaved={() => { setEditingGroup(null); loadHistory(); }}
+      />
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-950 text-slate-100 p-4">
       {/* Encabezado */}
@@ -200,6 +216,15 @@ export default function HistoryView({ user, category, onBack }) {
                   <span className="text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-800/50 px-2.5 py-0.5 rounded-full font-semibold">
                     {user.nombre}
                   </span>
+                  <button
+                    onClick={() => setEditingGroup(group)}
+                    disabled={deletingId === group.dateKey}
+                    className="p-1.5 bg-slate-950 hover:bg-slate-800 text-indigo-400 border border-slate-800 rounded-lg disabled:opacity-50"
+                    aria-label={`Editar historial del ${group.dateKey}`}
+                    title="Editar series de este día"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                   
                   {/* Botón de eliminar toda la rutina del día */}
                   <button

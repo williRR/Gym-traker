@@ -12,6 +12,10 @@ La tabla `set_logs` requiere una columna nullable `unidad` de tipo `text`, con v
 
 Durante una rutina puedes usar «Ejercicio anterior» para revisar o modificar series ya guardadas. Los datos escritos en otros ejercicios se conservan en el borrador local; los cambios se guardan al avanzar nuevamente. Como el guardado usa varias operaciones de base de datos, si falla puede quedar parcialmente aplicado: revisa las series y reintenta antes de continuar.
 
+En el historial de cada rutina, usa el botón de edición de un día y selecciona la sesión y el ejercicio para corregir, agregar o eliminar series. También puedes registrar series de un ejercicio que no se había guardado en esa sesión. Las sesiones del mismo día se identifican por fecha, hora e identificador; la edición solo afecta a la sesión elegida. No se muestran sesiones completamente vacías en el historial.
+
+La referencia de la última sesión se determina por la fecha de la sesión, no por la fecha en que se añadieron o corrigieron sus series en el historial.
+
 ## Progreso
 
 Desde el selector de rutinas, «Ver mi progreso» permite consultar los últimos 30 o 90 días, contados desde el momento de abrir la vista o cambiar el período. Para cada ejercicio y unidad se muestra la serie de mayor peso de cada sesión; si hay empate se elige la que tiene más repeticiones. La comparación usa la primera y última sesión del período, y requiere al menos dos sesiones. Los discos y las libras se presentan por separado sin convertirlos; las series de unidad no confirmada se cuentan, pero se excluyen de la gráfica y los cálculos. Las fechas corresponden a la creación de cada sesión y se muestran en la zona horaria del dispositivo.

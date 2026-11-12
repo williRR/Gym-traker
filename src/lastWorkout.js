@@ -12,10 +12,11 @@ export async function getLastWorkoutSets(supabase, userId, exerciseId, currentSe
 
   const { data: latestLog, error: logError } = await supabase
     .from('set_logs')
-    .select('session_id, created_at')
+    .select('session_id, workout_sessions!inner(created_at)')
     .in('session_id', sessionIds)
     .eq('exercise_id', exerciseId)
-    .order('created_at', { ascending: false })
+    .order('workout_sessions(created_at)', { ascending: false })
+    .order('session_id', { ascending: false })
     .limit(1);
 
   if (logError) throw logError;

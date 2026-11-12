@@ -43,10 +43,11 @@ test('consulta la última sesión del ejercicio y usuario solicitados', async ()
       ['order', 'created_at', { ascending: false }],
     ] },
     { table: 'set_logs', calls: [
-      ['select', 'session_id, created_at'],
+      ['select', 'session_id, workout_sessions!inner(created_at)'],
       ['in', 'session_id', [20, 10]],
       ['eq', 'exercise_id', 3],
-      ['order', 'created_at', { ascending: false }],
+      ['order', 'workout_sessions(created_at)', { ascending: false }],
+      ['order', 'session_id', { ascending: false }],
       ['limit', 1],
     ] },
     { table: 'set_logs', calls: [
