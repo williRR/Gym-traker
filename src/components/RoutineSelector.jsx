@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dumbbell, Flame, BicepsFlexed, LogOut, PlusCircle, History, TrendingUp } from 'lucide-react';
 
-export default function RoutineSelector({ user, onLogout, onSelectRoutine, onProgress }) {
+export default function RoutineSelector({ user, onLogout, onSelectRoutine, onProgress, onPonchos }) {
   const ROUTINES = [
     {
       id: 'espalda',
@@ -41,6 +41,9 @@ export default function RoutineSelector({ user, onLogout, onSelectRoutine, onPro
           </button>
         </div>
 
+        <button onClick={onPonchos} className="w-full mb-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-semibold py-3 rounded-xl text-sm transition">
+          Ponchos para Jose
+        </button>
         <button onClick={onProgress} className="w-full mb-6 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm transition">
           <TrendingUp className="w-4 h-4" /> Ver mi progreso
         </button>

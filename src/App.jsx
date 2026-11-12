@@ -4,6 +4,7 @@ import RoutineSelector from './components/RoutineSelector';
 import WorkoutFlow from './components/WorkoutFlow';
 import HistoryView from './components/HistoryView';
 import ProgressView from './components/ProgressView';
+import ponchosJose from './assets/ponchos-jose.png';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -96,6 +97,7 @@ export default function App() {
             onLogout={handleLogout}
             onSelectRoutine={handleSelectRoutine}
             onProgress={() => setViewMode('progress')}
+            onPonchos={() => setViewMode('ponchos')}
           />
         )}
 
@@ -118,6 +120,16 @@ export default function App() {
 
         {viewMode === 'progress' && (
           <ProgressView user={currentUser} onBack={() => setViewMode('selector')} />
+        )}
+
+        {viewMode === 'ponchos' && (
+          <div className="max-w-md mx-auto min-h-screen flex flex-col items-center justify-center p-6 text-center">
+            <h1 className="text-2xl font-bold text-white mb-6">Así te quería agarrar puerco</h1>
+            <img src={ponchosJose} alt="Así te quería agarrar puerco" className="w-full max-w-sm rounded-xl mb-6" />
+            <button onClick={() => setViewMode('selector')} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-xl transition">
+              Volver
+            </button>
+          </div>
         )}
       </div>
     </ErrorBoundary>
